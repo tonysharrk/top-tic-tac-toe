@@ -20,7 +20,11 @@ function gameBoard(rows, columns) {
     })
   }
   
-  return {getGameBoard};
+  const insertInput= (row, column, value) => {
+    board[row][column].setCellValue(value);
+  }
+
+  return {getGameBoard, insertInput};
 }
 
 //Get & Setter for specific cells
@@ -42,4 +46,5 @@ function cell() {
 const board= gameBoard(3,3);
 console.log(board.getGameBoard());
 
-// function gamecontroller
+board.insertInput(0,0,"X");
+console.log(board.getGameBoard());
