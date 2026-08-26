@@ -1,15 +1,20 @@
 import "./styles.css"
 
-const DEFAULTCELLVALUE= "_";
+const DEFAULTCELLVALUE= "";
 
 function gameBoard(rows, columns) {
   const board= []; //non-primitive
 
   // Create the gameboard
-  for (let i=0; i< rows; i++) {
-    board.push([]);
-    for (let j= 0; j< columns; j++) {
-      board[i].push(cell());
+  const initializeGameBoard= () => {
+    // Always reset the variable before creating anything inside it. Because the variable is declared outside this function scope, so its state is maintained by this function through closure.
+    board.length= 0;
+
+    for (let r=0; r< rows; r++) {
+      board.push([]);
+      for (let c= 0; c< columns; c++) {
+        board[r].push(cell());
+      }
     }
   }
   // Get the gameboard with only the cell values (Getter for the board)
@@ -25,7 +30,13 @@ function gameBoard(rows, columns) {
     board[row][column].setCellValue(value);
   }
 
-  return {getGameBoard, insertToken};
+  const resetGameBoard= () => {
+    initializeGameBoard();
+  }
+
+  initializeGameBoard();
+
+  return {getGameBoard, resetGameBoard, insertToken};
 }
 
 
@@ -47,7 +58,6 @@ function cell() {
 
 
 
-
 function gameController(player1Name= "Player 1", player2Name= "Player 2") {
   const players= [
     {
@@ -62,10 +72,13 @@ function gameController(player1Name= "Player 1", player2Name= "Player 2") {
   // Initialize the gameBoard
   const boardObj= gameBoard(3,3);
 
-  // Function to display the game board
-  const displayGameBoard = () => {
-    console.log(boardObj.getGameBoard());
-  }
+  const getBoardDetails= () => {
+    return {
+      board: boardObj.getGameBoard(),
+      rows: boardObj.getGameBoard().length,
+      columns: boardObj.getGameBoard()[0].length
+    };
+  };
 
   //Default active player initially is Player 1
   let activePlayer= players[0];
@@ -74,6 +87,12 @@ function gameController(player1Name= "Player 1", player2Name= "Player 2") {
   const getActivePlayer= () => {
     return activePlayer;
   }
+
+  // Reset game board & reset active player turn
+  const resetBoard= () => {
+    boardObj.resetGameBoard();
+    activePlayer= players[0];
+  }
   
   //Switches player turn
   const switchPlayerTurn= () => {
@@ -81,48 +100,23 @@ function gameController(player1Name= "Player 1", player2Name= "Player 2") {
   }
 
   // Starts turn and inputs token
-  const playTurn= () => {
-    let validMove= false;
-
-     // Check for valid moves & insert token if the move is valid
-    while (validMove === false) {
-      //Get the row & column for inputting token
-      const inputRowColumn= prompt("Enter cell row & cell column seperated by comma, in that order");
-      // Retrun if cancel is pressed (null) 
-      // The case for no input given ("") is handled later with isNaN(column)
-      if (inputRowColumn === null) {
-        return "cancel";
-      }
-
-      // If cancel is not pressed, parse the input
-      const cellRowColumn= inputRowColumn.split(",").map((number) => {
-        return Number(number.trim());
-      });
-      const row = cellRowColumn[0];
-      const column= cellRowColumn[1];
-      
-      // Check for invalid input
-      if (row< 0 || row> 2|| column<0 || column>2 || isNaN(row) || isNaN(column)) {
-        alert("Invalid coordinate! Please enter numbers between 0 and 2.");
-      } 
-      else if (boardObj.getGameBoard()[row][column] !== DEFAULTCELLVALUE) { 
-        alert("That cell is taken! Choose an empty spot.");
-      }
-      else {
-        // Block to execute for valid input
-        validMove= true;
-        //Inserts the token of currently active player in the prompted cell
-        boardObj.insertToken(row, column, getActivePlayer().token);
-      }
+  const playTurn= (row, column) => {
+    if (row< 0 || row> 2|| column<0 || column>2 || isNaN(row) || isNaN(column)) {
+      return "Invalid coordinate! Please enter numbers between 0 and 2.";
+    } 
+    else if (boardObj.getGameBoard()[row][column] !== DEFAULTCELLVALUE) { 
+      return "That cell is taken! Choose an empty spot.";
+    }
+    else {
+      //Inserts the token of currently active player in the prompted cell
+      boardObj.insertToken(row, column, getActivePlayer().token);
     }
   }
 
   // Function to check the win condition
-  const checkWinCondition= () => {
-    const board= boardObj.getGameBoard();
-    const rows= board.length;
-    const columns= board[0].length;
+  const checkWinCondition= () => {   
     const activePlayerToken= getActivePlayer().token;
+    const {board, rows, columns} = getBoardDetails();
 
     // Check horizontally (r fix, c anything)
     for (let r= 0; r< rows; r++) {
@@ -187,7 +181,7 @@ function gameController(player1Name= "Player 1", player2Name= "Player 2") {
 
   // Check tie condition
   const checkTieCondition= () => {
-    const board= boardObj.getGameBoard();
+    const board= getBoardDetails().board;
 
     const isBoardFull= board.every((row) => {
       return row.every((cell) => {
@@ -199,42 +193,108 @@ function gameController(player1Name= "Player 1", player2Name= "Player 2") {
   }
 
   // Function incorporating earlier functions for game flow
-  const playGame = () => {
-    let gameOver= false;
-    // Default gameBoard display
-    displayGameBoard(); 
+  const playRound = () => {
+    if (checkWinCondition() === true) {
+     return `${getActivePlayer().name} wins. Game over.`;
+    } 
+    else if (checkTieCondition() === true) {
+      return `Its a tie between ${players[0].name} & ${players[1].name}.`;
+    }
+    else {
+      switchPlayerTurn();
+    }   
+  }
 
-    while (!gameOver) {
-      console.log(`Starting ${getActivePlayer().name}'s turn...`);
-      const turnResult= playTurn();
-      
-      if (turnResult=== "cancel") {
-        console.log(`Game was cancelled by ${getActivePlayer().name}.`);
-        break;
+  return {getBoardDetails, getActivePlayer, switchPlayerTurn, playTurn, playRound, resetBoard};
+}
+
+
+// Display logic
+const announceTurn= document.querySelector(".turn");
+const gameBoardContainer= document.querySelector(".gameboard");
+const messageDiv= document.querySelector(".message");
+const resetButton= document.querySelector(".reset-btn");
+
+function screenController() {
+  // Game starts & initializes internally
+  const game= gameController();
+  
+  // Iniialize the variables
+  let isGameOver = false;
+  announceTurn.textContent= `${game.getActivePlayer().name}'s Turn...`;
+  messageDiv.textContent= "";
+  
+  // Render Gameboard in gameBoardContainer
+  const renderGameBoard= () => {
+    gameBoardContainer.textContent = "";
+    const gameBoard= game.getBoardDetails();
+
+    for (let r=0; r< gameBoard.rows; r++) {
+      const row= document.createElement("div");
+      // row.textContent= gameBoard.board[r];
+
+      for (let c=0; c< gameBoard.columns; c++) {
+        const cell= document.createElement("div");
+        cell.textContent= gameBoard.board[r][c];
+        cell.classList.add("cell");
+        cell.dataset.row= r;
+        cell.dataset.column= c;
+
+        row.appendChild(cell);
       }
 
-      displayGameBoard();
+      gameBoardContainer.appendChild(row);
+    }
+  }
 
-      if (checkWinCondition() === true) {
-        console.log(`${getActivePlayer().name} wins. Game over.`);
-        gameOver= true;
-      } 
-      else if (checkTieCondition() === true) {
-        console.log(`Its a tie between ${players[0].name} & ${players[1].name}.`);
-        gameOver= true;
+  // Define what happens on click
+  const clickEventHandler= (event) => {
+    if (isGameOver) {
+      return;
+    }
+
+    if (event.target.classList.contains("cell")) {
+      const selectedCellRow= Number(event.target.dataset.row);
+      const selectedCellColumn= Number(event.target.dataset.column);
+      const moveResult= game.playTurn(selectedCellRow, selectedCellColumn);
+
+      if (typeof moveResult === "string") {
+        messageDiv.textContent= moveResult;
       }
       else {
-        switchPlayerTurn();
+        messageDiv.textContent = "";
+        renderGameBoard();
+        const gameResult= game.playRound();
+
+        if (typeof gameResult === "string") {
+          messageDiv.textContent= gameResult;
+          announceTurn.textContent= `Game Ended.`
+          isGameOver = true;
+        }
+        else {
+          announceTurn.textContent= `${game.getActivePlayer().name}'s Turn...`;
+        }
       }
     }
   }
 
-  return {playGame};
+  // Set logic to input token on click on any cell
+  gameBoardContainer.addEventListener("click", clickEventHandler);
+
+  // Resets the gameboard
+  resetButton.addEventListener("click", () => {
+    // Resets internal game board
+    game.resetBoard();
+    // Resets variables defined at the top inside screenController()
+    isGameOver= false;
+    announceTurn.textContent= `${game.getActivePlayer().name}'s Turn...`;
+    messageDiv.textContent = "";
+    // renders the game board from internal board again
+    renderGameBoard();
+  })
+
+  // Default after page load
+  renderGameBoard();
 }
 
-// Game starts & initializes internally
-const game= gameController();
-
-game.playGame();
-
-
+screenController();
